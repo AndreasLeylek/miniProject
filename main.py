@@ -1,132 +1,178 @@
+import customtkinter as ctk
+from TMDB import get_genre_id, get_streaming_provider_id, get_top_250_movies_by_genre, get_popularity_range
+from tkinter import messagebox
+from PIL import Image, ImageTk
 import requests
+from io import BytesIO
 
-# API-Schlüssel und URL für OMDb API
-API_KEY = '849cfc60'
-URL = 'http://www.omdbapi.com/'
+# Funktion zum Herunterladen des Posters
+def load_poster(url):
+    try:
+        response = requests.get(url)
+        image_data = BytesIO(response.content)
+        img = Image.open(image_data)
+        img = img.resize((300, 400), Image.ANTIALIAS)
+        return ImageTk.PhotoImage(img)
+    except:
+        return None
 
+# Popup-Fenster mit den Filmdetails anzeigen
+def show_movie_popup(movie):
+    if movie:
+        popup = ctk.CTkToplevel()
+        popup.title(movie['title'])
 
-# Funktion, um Fragen an den Benutzer zu stellen und die Antworten zu sammeln
-def ask_questions():
-    genre = input("In welchem Genre befindet sich der Film? (z.B. Action, Comedy, Drama, Horror): ").capitalize()
-    age_group = input(
-        "Möchtest du einen älteren oder neueren Film sehen? (älter = vor 2000, neuer = ab 2000): (optional, einfach Enter drücken, wenn keine Präferenz) ").lower()
-    actor = input(
-        "Gibt es einen Schauspieler oder eine Schauspielerin, den/die du bevorzugst? (optional, einfach Enter drücken, wenn keine Präferenz): ").capitalize()
+        title_label = ctk.CTkLabel(popup, text=f"{movie['title']} ({movie['release_date'][:4]})", font=('Helvetica', 14, 'bold'))
+        title_label.pack(pady=10)
 
-    return genre, age_group, actor
+        poster_path = movie.get('poster_path')
+        poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+        if poster_url:
+            poster_img = load_poster(poster_url)
+            if poster_img:
+                poster_label = ctk.CTkLabel(popup, image=poster_img)
+                poster_label.image = poster_img  # Referenz speichern
+                poster_label.pack()
+            else:
+                ctk.CTkLabel(popup, text="Kein Poster verfügbar").pack()
+        else:
+            ctk.CTkLabel(popup, text="Kein Poster verfügbar").pack()
 
+        description = movie.get('overview', 'Keine Beschreibung verfügbar')
+        description_label = ctk.CTkLabel(popup, text=f"Beschreibung: {description}", wraplength=400, justify="left")
+        description_label.pack(pady=10)
 
-# Funktion, um nach Filmen basierend auf Benutzerantworten zu suchen
-def search_movie(genre, age_group, actor):
-    params = {
-        'apikey': API_KEY,
-        'type': 'movie',  # Nur Filme suchen
-        's': genre  # Suche nach Genre
-    }
-
-    # Optional: Nur hinzufügen, wenn der Schauspieler eingegeben wurde
-    if actor:
-        params['s'] = actor  # Nach Schauspieler suchen, wenn angegeben
-
-    # Anfrage an die OMDb API senden
-    response = requests.get(URL, params=params)
-
-    # Überprüfen, ob die Anfrage erfolgreich war (HTTP-Statuscode)
-    if response.status_code != 200:
-        print("Fehler bei der API-Anfrage:", response.status_code)
-        return []
-
-    # API-Daten in JSON umwandeln
-    data = response.json()
-
-    # Überprüfen, ob Filme gefunden wurden
-    if data.get('Response') == 'True':
-        print(f"{len(data['Search'])} Filme gefunden.")
-
-        # Optionales Genre-Filtering im Code, wenn Genre eingegeben wurde
-        filtered_movies = []
-        for movie in data['Search']:
-            # Ruft für jeden Film die Details ab
-            details = get_movie_details(movie['imdbID'])
-            runtime = details.get('Runtime', '')
-
-            # Überprüfen, ob die Laufzeit eine Zahl enthält
-            try:
-                runtime_in_minutes = int(runtime.split()[0]) if runtime and runtime != 'N/A' else 0
-            except ValueError:
-                print(f"Ungültige Laufzeit für den Film '{details['Title']}': {runtime}")
-                runtime_in_minutes = 0  # Falls die Laufzeit nicht in Minuten ist, setzen wir sie auf 0
-
-            print(
-                f"Überprüfe Film: {details['Title']} mit Genre: {details.get('Genre', 'Kein Genre')}, Laufzeit: {runtime}, Jahr: {details['Year']}")
-
-            # Prüfen, ob das Genre enthalten ist (flexible Filterung, keine exakte Übereinstimmung nötig)
-            if genre.lower() not in details.get('Genre', '').lower():
-                print(f"Film '{details['Title']}' hat das Genre {details['Genre']}, passt aber nicht exakt.")
-                continue
-
-            # Prüfen, ob der Film in die richtige Alterskategorie fällt (wenn angegeben)
-            year = int(details.get('Year', '0').split('–')[0])  # Manchmal gibt es "1999–" für Serien, deshalb splitten
-            if age_group == 'älter' and year >= 2000:
-                print(f"Film '{details['Title']}' ist kein älterer Film.")
-                continue
-            elif age_group == 'neuer' and year < 2000:
-                print(f"Film '{details['Title']}' ist kein neuerer Film.")
-                continue
-
-            # Prüfen, ob es sich um einen Kurzfilm handelt (Laufzeit unter 60 Minuten)
-            if runtime_in_minutes < 60:
-                print(f"Film '{details['Title']}' ist ein Kurzfilm und wird nicht berücksichtigt.")
-                continue
-
-            filtered_movies.append(details)
-
-        # Rückgabe der Top 10 Filme in diesem Genre, wenn keine Alters- oder Schauspieler-Filter angewendet werden
-        if not age_group and not actor:
-            return filtered_movies[:10]  # Top 10 zurückgeben
-
-        return filtered_movies
+        close_button = ctk.CTkButton(popup, text="Schließen", command=popup.destroy)
+        close_button.pack(pady=20)
     else:
-        print("Keine passenden Filme gefunden.")
-        return []
+        messagebox.showinfo("Fehler", "Kein Film gefunden.")
 
+# Hauptfunktion, um die Antworten zu sammeln und den Film zu finden
+def on_submit():
+    genre = genre_var.get()
+    year_group = age_group_var.get().lower()
+    mood = mood_var.get()
+    streaming_service = streaming_service_var.get()
+    production_company = production_company_entry.get()
+    keywords = keywords_entry.get()
+    runtime = runtime_var.get()
+    trending = trending_var.get()
+    top_rated = top_rated_var.get()
 
-# Funktion, um die Details eines Films basierend auf der IMDb-ID abzurufen
-def get_movie_details(imdb_id):
-    params = {
-        'apikey': API_KEY,
-        'i': imdb_id
-    }
-    response = requests.get(URL, params=params)
+    # Abrufen der Genre-ID basierend auf der Auswahl
+    genre_id = get_genre_id(genre)
+    if not genre_id:
+        messagebox.showinfo("Fehler", "Genre nicht gefunden.")
+        return
 
-    # Fehlerbehandlung für die Abfrage der Details
-    if response.status_code != 200:
-        print(f"Fehler bei der Detail-Abfrage (IMDb-ID: {imdb_id}):", response.status_code)
-        return {}
+    # Abrufen der Provider-ID basierend auf der Benutzerauswahl
+    streaming_provider_id = get_streaming_provider_id(streaming_service)
 
-    return response.json()
+    if not streaming_provider_id:
+        messagebox.showinfo("Fehler", "Streamingdienst nicht gefunden.")
+        return
 
+    # Beliebtheitsbereich von der Slider-Position ermitteln
+    popularity_value = popularity_slider.get()
+    popularity_range = get_popularity_range(popularity_value)
 
-# Hauptprogramm (Main-Klasse), die den gesamten Ablauf steuert
-def main():
-    # 1. Fragen an den Benutzer stellen und Antworten sammeln
-    genre, age_group, actor = ask_questions()
+    # Filme basierend auf den Kriterien und Popularität suchen (hier muss die API-Anfrage angepasst werden)
+    movies = get_top_250_movies_by_genre(genre_id, year_group, popularity_range, streaming_provider_id)
 
-    # 2. Suche nach Filmen basierend auf den Antworten
-    movies = search_movie(genre, age_group, actor)
+    if not movies:
+        messagebox.showinfo("Fehler", "Keine Filme gefunden.")
+        return
 
-    # 3. Gefundene Filme anzeigen
-    if movies:
-        print(f"\nGefundene Filme:")
-        for movie in movies:
-            print(f"- {movie['Title']} ({movie['Year']}) - Bewertung: {movie.get('imdbRating', 'Keine Bewertung')}")
-            print(f"   Genre: {movie['Genre']}")
-            print(f"   Handlung: {movie['Plot']}")
-            print()
-    else:
-        print("Es wurden keine Filme gefunden.")
+    # Zeige den ersten Film in einem Popup-Fenster an
+    show_movie_popup(movies[0])
 
+# Funktion, um den Popularitätswert im Label zu aktualisieren
+def update_popularity_label(value):
+    popularity_value_label.configure(text=f"Beliebtheit: {int(value)}")
 
-# Programm starten
-if __name__ == "__main__":
-    main()
+# Funktion zum Aktualisieren der Laufzeitanzeige
+def update_runtime_label(value):
+    if value == 1:
+        runtime_value_label.configure(text="Laufzeit: 0-1 Stunde")
+    elif value == 2:
+        runtime_value_label.configure(text="Laufzeit: 1-2 Stunden")
+    elif value == 3:
+        runtime_value_label.configure(text="Laufzeit: 2-3 Stunden")
+    elif value == 4:
+        runtime_value_label.configure(text="Laufzeit: 3+ Stunden")
+
+# GUI-Setup
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
+
+root = ctk.CTk()
+root.title("Welchen Film soll ich schauen?")
+root.geometry("700x400")
+
+# 1. Genre-Auswahl
+ctk.CTkLabel(root, text="Genre (z.B. Action, Comedy, Drama):").grid(row=0, column=0, padx=10, pady=5)
+genre_var = ctk.StringVar(root)
+genre_var.set("Action")  # Standardwert setzen
+genres = ["Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Science Fiction", "TV Movie", "Thriller", "War", "Western"]
+genre_menu = ctk.CTkOptionMenu(root, variable=genre_var, values=genres)
+genre_menu.grid(row=0, column=1, padx=10, pady=5)
+
+# 2. Alter (Älter/Neuer)
+ctk.CTkLabel(root, text="Alter des Films (älter/neuer):").grid(row=1, column=0, padx=10, pady=5)
+age_group_var = ctk.StringVar(root)
+age_group_menu = ctk.CTkOptionMenu(root, variable=age_group_var, values=["Älter", "Neuer", "Keine Angabe"])
+age_group_menu.grid(row=1, column=1, padx=10, pady=5)
+
+# 3. Stimmung
+ctk.CTkLabel(root, text="Stimmung:").grid(row=2, column=0, padx=10, pady=5)
+mood_var = ctk.StringVar(root)
+mood_menu = ctk.CTkOptionMenu(root, variable=mood_var, values=["Fröhlich", "Spannend", "Nachdenklich", "Inspirierend", "Keine Angabe"])
+mood_menu.grid(row=2, column=1, padx=10, pady=5)
+
+# 4. Streamingdienst
+ctk.CTkLabel(root, text="Streamingdienst").grid(row=3, column=0, padx=10, pady=5)
+streaming_service_var = ctk.StringVar(root)
+streaming_service_var.set("Netflix")  # Standardwert setzen
+streaming_services = ["Netflix", "Amazon Prime", "Disney+", "Hulu", "HBO Max", "Youtube", "Apple TV+", "Sky Go", "Peacock", "Paramount+", "Mubi", "Crave", "Starz"]
+streaming_service_menu = ctk.CTkOptionMenu(root, variable=streaming_service_var, values=streaming_services)
+streaming_service_menu.grid(row=3, column=1, padx=10, pady=5)
+
+# 5. Produktionsfirma
+ctk.CTkLabel(root, text="Produktionsfirma:").grid(row=4, column=0, padx=10, pady=5)
+production_company_entry = ctk.CTkEntry(root)
+production_company_entry.grid(row=4, column=1, padx=10, pady=5)
+
+# 6. Keywords
+ctk.CTkLabel(root, text="Keywords:").grid(row=5, column=0, padx=10, pady=5)
+keywords_entry = ctk.CTkEntry(root)
+keywords_entry.grid(row=5, column=1, padx=10, pady=5)
+
+# Laufzeit Slider (0-1, 1-2, 2-3, 3+ Stunden)
+ctk.CTkLabel(root, text="Laufzeit (Stunden):").grid(row=6, column=0, padx=10, pady=5)
+runtime_var = ctk.IntVar()
+runtime_slider = ctk.CTkSlider(root, from_=1, to=4, number_of_steps=3, command=update_runtime_label)
+runtime_slider.grid(row=6, column=1, padx=10, pady=5)
+runtime_value_label = ctk.CTkLabel(root, text="Laufzeit: 0-1 Stunde")
+runtime_value_label.grid(row=6, column=2, padx=10, pady=5)
+
+# Beliebtheit (Slider von 1-10)
+ctk.CTkLabel(root, text="Beliebtheit ").grid(row=7, column=0, padx=10, pady=5)
+popularity_value_label = ctk.CTkLabel(root, text="Beliebtheit: 1")
+popularity_value_label.grid(row=7, column=2, padx=10, pady=5)
+popularity_slider = ctk.CTkSlider(root, from_=1, to=10, number_of_steps=9, command=update_popularity_label)
+popularity_slider.grid(row=7, column=1, padx=10, pady=5)
+
+# Checkboxen untereinander
+trending_var = ctk.StringVar(root)
+trending_checkbox = ctk.CTkCheckBox(root, text="Aktuell angesagt?", variable=trending_var)
+trending_checkbox.grid(row=8, column=0, padx=10, pady=5)
+
+top_rated_var = ctk.StringVar(root)
+top_rated_checkbox = ctk.CTkCheckBox(root, text="Sortieren nach Top Rated", variable=top_rated_var)
+top_rated_checkbox.grid(row=8, column=1, padx=10, pady=5)
+
+# Button zum Finden des Films
+submit_button = ctk.CTkButton(root, text="Film finden", command=on_submit)
+submit_button.grid(row=9, column=2, columnspan=2, pady=20)
+
+root.mainloop()

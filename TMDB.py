@@ -1,116 +1,190 @@
 import requests
-from API_KEY_URL import *
-from bs4 import BeautifulSoup
 
-# Bearer Token für TMDb API
+BEARER_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlOWZjZGIxYTM5YTY3OWIzNzA2MTkyMTNjYTg1ODJlZSIsIm5iZiI6MTcyOTQyNTc5OC41MzYwNTIsInN1YiI6IjY3MGUyNDAyOWYzNTMxZTZiMjZjNTdlMiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.AGTtZT0CKAOXG-lmogUqX30N2ErkQeULnpC6Z8wUCxo"
 
-BEARER_TOKEN = {BEARER_TOKEN}
-BASE_URL = {BASE_URL}
-
-# Funktion, um Fragen an den Benutzer zu stellen und die Antworten zu sammeln
-def ask_questions():
-    genre = input("In welchem Genre befindet sich der Film? (z.B. Action, Comedy, Drama, Horror): ").capitalize()
-    age_group = input(
-        "Möchtest du einen älteren oder neueren Film sehen? (älter = vor 2000, neuer = ab 2000): ").lower()
-    actor = input(
-        "Gibt es einen Schauspieler oder eine Schauspielerin, den/die du bevorzugst? (optional, einfach Enter drücken, wenn keine Präferenz): ").capitalize()
-    popular = input(
-        "Möchtest du eher einen bekannten oder nicht so bekannten Film anschauen? (bekannt/nicht bekannt): ").lower()
-    top_rated = input("Möchtest du die Top Ratings aus einer Genre holen? (ja/nein): ").lower()
-    user_rating = input("Vertraust du lieber Benutzerbewertungen? (ja/nein): ").lower()
-    based_other_movie = input(
-        "Gibt es einen Film, den du gut findest? Dann kann ich ähnliche Filme vorschlagen (optional): ").capitalize()
-
-    return genre, age_group, actor, popular, top_rated, user_rating, based_other_movie
-
-
-# Funktion, um die Details eines Films basierend auf der Film-ID abzurufen
-def get_movie_details(movie_id):
+def get_genre_id(genre_name):
+    url = "https://api.themoviedb.org/3/genre/movie/list"
     headers = {
-        'Authorization': f'Bearer {BEARER_TOKEN}'
+        "Authorization": f"Bearer {BEARER_TOKEN}"
     }
-    details_url = f"{BASE_URL}/movie/{movie_id}"
-
-    response = requests.get(details_url, headers=headers)
-
-    if response.status_code == 404:
-        return None  # Gib None zurück, wenn der Film nicht gefunden wird
-
-    if response.status_code != 200:
-        return None  # Gib None zurück bei anderen Fehlern
-
-    return response.json()
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        print(response.json())
 
 
-# Funktion zum Anzeigen von Filminformationen, inklusive Poster-URL
-def display_movie_info(movie):
-    print(
-        f"- {movie['title']} ({movie['release_date'][:4] if movie.get('release_date') else 'Kein Datum'}) - Bewertung: {movie.get('vote_average', 'Keine Bewertung')}")
-
-    # Genre anzeigen
-    genres = movie.get('genres', [])
-    if genres:
-        print(f"   Genre: {', '.join([g['name'] for g in genres])}")
+    if genre_name.lower() == "action":
+        return 28
+    elif genre_name.lower() == "adventure":
+        return 12
+    elif genre_name.lower() == "animation":
+        return 16
+    elif genre_name.lower() == "comedy":
+        return 35
+    elif genre_name.lower() == "crime":
+        return 80
+    elif genre_name.lower() == "documentary":
+        return 99
+    elif genre_name.lower() == "drama":
+        return 18
+    elif genre_name.lower() == "family":
+        return 10751
+    elif genre_name.lower() == "fantasy":
+        return 14
+    elif genre_name.lower() == "history":
+        return 36
+    elif genre_name.lower() == "horror":
+        return 27
+    elif genre_name.lower() == "music":
+        return 10402
+    elif genre_name.lower() == "mystery":
+        return 9648
+    elif genre_name.lower() == "romance":
+        return 10749
+    elif genre_name.lower() == "science fiction":
+        return 878
+    elif genre_name.lower() == "tv movie":
+        return 10770
+    elif genre_name.lower() == "thriller":
+        return 53
+    elif genre_name.lower() == "war":
+        return 10752
+    elif genre_name.lower() == "western":
+        return 37
     else:
-        print("   Genre: Keine Informationen verfügbar")
+        return None  # Falls kein passendes Genre gefunden wird
 
-    # Handlung anzeigen
-    print(f"   Handlung: {movie.get('overview', 'Keine Handlung verfügbar')}")
 
-    # Poster-URL generieren und anzeigen
-    poster_path = movie.get('poster_path')
-    if poster_path:
-        # Generiere die vollständige Poster-URL
-        poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}"
-        print(f"   Poster: {poster_url}")
+
+def get_genres():
+    url = "https://api.themoviedb.org/3/genre/movie/list"
+    headers = {
+        "Authorization": f"Bearer {BEARER_TOKEN}"
+    }
+    params = {
+        "language": "de"  # Sprache auf Deutsch setzen
+    }
+    response = requests.get(url, headers=headers, params=params)
+
+    if response.status_code == 200:
+        return response.json().get("genres", [])
     else:
-        print("   Poster: Kein Poster verfügbar")
-    print()
+        print(f"Fehler bei der API-Abfrage: {response.status_code}")
+        return []
 
 
-# Funktion, um ähnliche Filme basierend auf einem Filmvorschlag zu suchen
-def search_similar_movies(movie_title):
+def get_streaming_providers():
+    url = "https://api.themoviedb.org/3/watch/providers/movie"
     headers = {
-        'Authorization': f'Bearer {BEARER_TOKEN}'
+        "Authorization": f"Bearer {BEARER_TOKEN}"
     }
-    # Suche die Movie-ID basierend auf dem Titel des Films
-    search_url = f"{BASE_URL}/search/movie"
-    params = {'query': movie_title}
-    response = requests.get(search_url, headers=headers, params=params)
+    params = {
+        "language": "de",  # Spracheinstellung
+        "watch_region": "DE"  # Region (DE für Deutschland)
+    }
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        return response.json().get("results", [])
+    else:
+        print(f"Fehler bei der API-Abfrage: {response.status_code}")
+        return []
 
-    if response.status_code != 200:
-        return []  # Gib eine leere Liste zurück, falls die Suche fehlschlägt
+# Funktion, um Popularitätsbereiche basierend auf der Slider-Position zu ermitteln
+def get_popularity_range(slider_value):
+    if slider_value == 1:
+        return (0, 20)
+    elif slider_value == 2:
+        return (20, 40)
+    elif slider_value == 3:
+        return (40, 60)
+    elif slider_value == 4:
+        return (60, 80)
+    elif slider_value == 5:
+        return (80, 100)
+    elif slider_value == 6:
+        return (100, 150)
+    elif slider_value == 7:
+        return (150, 200)
+    elif slider_value == 8:
+        return (200, 300)
+    elif slider_value == 9:
+        return (300, 500)
+    elif slider_value == 10:
+        return (500, None)  # Unbegrenzte Popularität
 
-    data = response.json().get('results', [])
+def get_streaming_provider_id(streaming_service_name):
+    if streaming_service_name.lower() == "netflix":
+        return 8
+    elif streaming_service_name.lower() == "amazon prime":
+        return 9
+    elif streaming_service_name.lower() == "disney+":
+        return 337
+    elif streaming_service_name.lower() == "hulu":
+        return 15
+    elif streaming_service_name.lower() == "hbo max":
+        return 384
+    elif streaming_service_name.lower() == "apple itunes":
+        return 2
+    elif streaming_service_name.lower() == "google play movies":
+        return 3
+    elif streaming_service_name.lower() == "youtube":
+        return 188
+    elif streaming_service_name.lower() == "apple tv+":
+        return 350
+    elif streaming_service_name.lower() == "sky go":
+        return 19
+    elif streaming_service_name.lower() == "peacock":
+        return 386
+    elif streaming_service_name.lower() == "paramount+":
+        return 531
+    elif streaming_service_name.lower() == "mubi":
+        return 421
+    elif streaming_service_name.lower() == "crave":
+        return 230
+    elif streaming_service_name.lower() == "starz":
+        return 43
+    else:
+        return None
 
-    if not data:
-        return []  # Gib eine leere Liste zurück, wenn der Film nicht gefunden wurde
-
-    movie_id = data[0]['id']
-    # Suche ähnliche Filme basierend auf der Movie-ID
-    similar_url = f"{BASE_URL}/movie/{movie_id}/similar"
-    response = requests.get(similar_url, headers=headers)
-
-    if response.status_code != 200:
-        return []  # Gib eine leere Liste zurück, wenn die ähnliche Filme nicht gefunden werden
-
-    return response.json().get('results', [])
 
 
-# Funktion, um Filme basierend auf den Antworten zu suchen
-def search_movie(genre, age_group, actor, popular, top_rated, user_rating):
+def get_top_250_movies_by_genre(genre_id, year_group, popularity, streaming_provider_id=None):
     headers = {
-        'Authorization': f'Bearer {BEARER_TOKEN}'
+        "Authorization": f"Bearer {BEARER_TOKEN}"
     }
-    params = {'query': actor if actor else genre}  # Nutze Schauspieler oder Genre als Suchparameter
-    search_url = f"{BASE_URL}/search/movie"
+    all_movies = []
+    current_page = 1
+    total_pages = 13  # Da jede Seite 20 Filme enthält (13 * 20 = 260)
 
-    # Anfrage an die TMDb API senden
-    response = requests.get(search_url, headers=headers, params=params)
+    while len(all_movies) < 250 and current_page <= total_pages:
+        params = {
+            "with_genres": genre_id,
+            "sort_by": "popularity.desc" if popularity == "bekannt" else "popularity.asc",
+            "page": current_page,
+            "language": "de",
+            "region": "DE"
+        }
 
-    if response.status_code != 200:
-        return []  # Gib eine leere Liste zurück, falls die Suche fehlschlägt
+        # Älter oder neuer Film (Jahr filtern)
+        if year_group == "älter":
+            params["release_date.lte"] = "2000-01-01"
+        else:
+            params["release_date.gte"] = "2000-01-01"
 
-    return response.json().get('results', [])
+        # Optional: Filter nach Streamingdienst
+        if streaming_provider_id:
+            params["with_watch_providers"] = streaming_provider_id
+            params["watch_region"] = "DE"  # Stelle sicher, dass es für Deutschland gefiltert wird
 
+        url = "https://api.themoviedb.org/3/discover/movie"
+        response = requests.get(url, headers=headers, params=params)
 
+        if response.status_code == 200:
+            movies = response.json().get("results", [])
+            all_movies.extend(movies)
+        else:
+            print(f"Fehler bei der API-Abfrage: {response.status_code}")
+            break
+
+        current_page += 1
+
+    return all_movies[:250]  # Nur die Top 250 zurückgeben
