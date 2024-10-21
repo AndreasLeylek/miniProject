@@ -1,6 +1,6 @@
 import requests
 
-BEARER_TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlOWZjZGIxYTM5YTY3OWIzNzA2MTkyMTNjYTg1ODJlZSIsIm5iZiI6MTcyOTQyNTc5OC41MzYwNTIsInN1YiI6IjY3MGUyNDAyOWYzNTMxZTZiMjZjNTdlMiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.AGTtZT0CKAOXG-lmogUqX30N2ErkQeULnpC6Z8wUCxo"
+BEARER_TOKEN = ("eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlOWZjZGIxYTM5YTY3OWIzNzA2MTkyMTNjYTg1ODJlZSIsIm5iZiI6MTcyOTUwMTU2MC42NzYxOTMsInN1YiI6IjY3MGUyNDAyOWYzNTMxZTZiMjZjNTdlMiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.9jM6bs1v8fcVTvS8b91n0OP4lYn0yuzuWVZcdQI2x1c")
 
 def get_genre_id(genre_name):
     url = "https://api.themoviedb.org/3/genre/movie/list"
@@ -61,7 +61,8 @@ def get_genres():
         "Authorization": f"Bearer {BEARER_TOKEN}"
     }
     params = {
-        "language": "de"  # Sprache auf Deutsch setzen
+        "language": "de-DE",  # Sprache auf Deutsch setzen
+        "watch_region": "de-DE"
     }
     response = requests.get(url, headers=headers, params=params)
 
@@ -79,7 +80,7 @@ def get_streaming_providers():
     }
     params = {
         "language": "de",  # Spracheinstellung
-        "watch_region": "DE"  # Region (DE für Deutschland)
+        "watch_region": "DE"
     }
     response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
@@ -87,6 +88,40 @@ def get_streaming_providers():
     else:
         print(f"Fehler bei der API-Abfrage: {response.status_code}")
         return []
+
+
+# Mapping von Genre und Stimmung auf spezifische Genre-Kombinationen
+def get_genre_combination(genre, mood):
+    genre_map = {
+        'Action': {
+            'Fröhlich': [28, 35],  # Action + Comedy
+            'Spannend': [28, 53],  # Action + Thriller
+            'Nachdenklich': [28, 18],  # Action + Drama
+            'Inspirierend': [28, 12],  # Action + Adventure
+            'Liebe': [28, 10749],  # Action + Romance
+            'Psycho': [28, 27],  # Action + Horror
+            'Krieg': [28, 10752]  # Action + War
+        },
+        'Science Fiction': {
+            'Fröhlich': [878, 35],  # Science Fiction + Comedy
+            'Spannend': [878, 53],  # Science Fiction + Thriller
+            'Nachdenklich': [878, 18],  # Science Fiction + Drama
+            'Inspirierend': [878, 12]  # Science Fiction + Adventure
+        },
+        'Adventure': {
+            'Fröhlich': [12, 35],  # Adventure + Comedy
+            'Spannend': [12, 53]  # Adventure + Thriller
+        },
+        # Weitere Genre-Definitionen kannst du hier hinzufügen...
+    }
+
+    # Rückgabe der kombinierten Genres basierend auf Stimmung und Hauptgenre
+    if genre in genre_map and mood in genre_map[genre]:
+        return genre_map[genre][mood]
+    else:
+        # Falls keine Stimmung definiert ist, nur das Hauptgenre verwenden
+        return [get_genre_id(genre)]
+
 
 # Funktion, um Popularitätsbereiche basierend auf der Slider-Position zu ermitteln
 def get_popularity_range(slider_value):
@@ -147,34 +182,41 @@ def get_streaming_provider_id(streaming_service_name):
 
 
 
-def get_top_250_movies_by_genre(genre_id, year_group, popularity, streaming_provider_id=None):
+def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_provider_id=None, mood=None):
     headers = {
         "Authorization": f"Bearer {BEARER_TOKEN}"
     }
     all_movies = []
     current_page = 1
-    total_pages = 13  # Da jede Seite 20 Filme enthält (13 * 20 = 260)
+    total_pages = 13  # Jede Seite enthält 20 Filme, also max. 13 Seiten für 250 Filme
+
+    # Verarbeite die Genre-IDs als kommaseparierte Liste
+    genre_ids_str = ",".join(map(str, genre_ids))
 
     while len(all_movies) < 250 and current_page <= total_pages:
         params = {
-            "with_genres": genre_id,
-            "sort_by": "popularity.desc" if popularity == "bekannt" else "popularity.asc",
-            "page": current_page,
-            "language": "de",
-            "region": "DE"
+            "with_genres": genre_ids_str,  # Kombinierte Genre-IDs
+            "language": "de-DE",  # Priorisiere deutsche Titel
+            "region": "DE",  # Region Deutschland
+            "watch_region": "DE",  # Streaming-Anbieter in Deutschland
+            "page": current_page
         }
 
-        # Älter oder neuer Film (Jahr filtern)
+        # Ältere oder neuere Filme filtern
         if year_group == "älter":
             params["release_date.lte"] = "2000-01-01"
-        else:
+        elif year_group == "neuer":
             params["release_date.gte"] = "2000-01-01"
 
         # Optional: Filter nach Streamingdienst
         if streaming_provider_id:
             params["with_watch_providers"] = streaming_provider_id
-            params["watch_region"] = "DE"  # Stelle sicher, dass es für Deutschland gefiltert wird
+            params["watch_region"] = "DE"
 
+        # Sortierung basierend auf Popularität (kann je nach Stimmung angepasst werden)
+        params["sort_by"] = "popularity.desc" if popularity == "bekannt" else "popularity.asc"
+
+        # API-Anfrage
         url = "https://api.themoviedb.org/3/discover/movie"
         response = requests.get(url, headers=headers, params=params)
 
@@ -187,4 +229,9 @@ def get_top_250_movies_by_genre(genre_id, year_group, popularity, streaming_prov
 
         current_page += 1
 
-    return all_movies[:250]  # Nur die Top 250 zurückgeben
+    return all_movies[:250]  # Nur die Top 250 Filme zurückgeben
+
+
+
+
+

@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from TMDB import get_genre_id, get_streaming_provider_id, get_top_250_movies_by_genre, get_popularity_range
+from TMDB import get_genre_id, get_streaming_provider_id, get_top_250_movies_by_genre, get_popularity_range, get_genre_combination
 from tkinter import messagebox
 from PIL import Image, ImageTk
 import requests
@@ -17,14 +17,19 @@ def load_poster(url):
         return None
 
 # Popup-Fenster mit den Filmdetails anzeigen
+# GUI-Modul für die Anzeige des Popups
 def show_movie_popup(movie):
     if movie:
         popup = ctk.CTkToplevel()
-        popup.title(movie['title'])
 
-        title_label = ctk.CTkLabel(popup, text=f"{movie['title']} ({movie['release_date'][:4]})", font=('Helvetica', 14, 'bold'))
+        # Verwende den deutschen Titel, wenn verfügbar, ansonsten den Originaltitel
+        title = movie.get('title')
+        release_date = movie.get('release_date', '')[:4] if movie.get('release_date') else 'Unbekannt'
+
+        title_label = ctk.CTkLabel(popup, text=f"{title} ({release_date})", font=('Helvetica', 14, 'bold'))
         title_label.pack(pady=10)
 
+        # Restliche Logik für das Poster und Beschreibung
         poster_path = movie.get('poster_path')
         poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
         if poster_url:
@@ -47,6 +52,8 @@ def show_movie_popup(movie):
     else:
         messagebox.showinfo("Fehler", "Kein Film gefunden.")
 
+
+
 # Hauptfunktion, um die Antworten zu sammeln und den Film zu finden
 def on_submit():
     genre = genre_var.get()
@@ -59,11 +66,8 @@ def on_submit():
     trending = trending_var.get()
     top_rated = top_rated_var.get()
 
-    # Abrufen der Genre-ID basierend auf der Auswahl
-    genre_id = get_genre_id(genre)
-    if not genre_id:
-        messagebox.showinfo("Fehler", "Genre nicht gefunden.")
-        return
+    # Abrufen der kombinierten Genre-IDs basierend auf der Auswahl von Genre und Stimmung
+    genre_combination = get_genre_combination(genre, mood)
 
     # Abrufen der Provider-ID basierend auf der Benutzerauswahl
     streaming_provider_id = get_streaming_provider_id(streaming_service)
@@ -76,8 +80,8 @@ def on_submit():
     popularity_value = popularity_slider.get()
     popularity_range = get_popularity_range(popularity_value)
 
-    # Filme basierend auf den Kriterien und Popularität suchen (hier muss die API-Anfrage angepasst werden)
-    movies = get_top_250_movies_by_genre(genre_id, year_group, popularity_range, streaming_provider_id)
+    # Filme basierend auf den Kriterien suchen
+    movies = get_top_250_movies_by_genre(genre_combination, year_group, popularity_range, streaming_provider_id, mood)
 
     if not movies:
         messagebox.showinfo("Fehler", "Keine Filme gefunden.")
@@ -85,6 +89,9 @@ def on_submit():
 
     # Zeige den ersten Film in einem Popup-Fenster an
     show_movie_popup(movies[0])
+
+
+
 
 # Funktion, um den Popularitätswert im Label zu aktualisieren
 def update_popularity_label(value):
@@ -110,15 +117,17 @@ root.title("Welchen Film soll ich schauen?")
 root.geometry("700x400")
 
 # 1. Genre-Auswahl
-ctk.CTkLabel(root, text="Genre (z.B. Action, Comedy, Drama):").grid(row=0, column=0, padx=10, pady=5)
+ctk.CTkLabel(root, text="Genre").grid(row=0, column=0, padx=10, pady=5)
 genre_var = ctk.StringVar(root)
 genre_var.set("Action")  # Standardwert setzen
-genres = ["Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery", "Romance", "Science Fiction", "TV Movie", "Thriller", "War", "Western"]
+genres = ["Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
+          "Drama", "Family", "Fantasy", "History", "Horror", "Music", "Mystery",
+          "Romance", "Science Fiction", "TV Movie", "Thriller", "War", "Western"]
 genre_menu = ctk.CTkOptionMenu(root, variable=genre_var, values=genres)
 genre_menu.grid(row=0, column=1, padx=10, pady=5)
 
 # 2. Alter (Älter/Neuer)
-ctk.CTkLabel(root, text="Alter des Films (älter/neuer):").grid(row=1, column=0, padx=10, pady=5)
+ctk.CTkLabel(root, text="Alter des Films").grid(row=1, column=0, padx=10, pady=5)
 age_group_var = ctk.StringVar(root)
 age_group_menu = ctk.CTkOptionMenu(root, variable=age_group_var, values=["Älter", "Neuer", "Keine Angabe"])
 age_group_menu.grid(row=1, column=1, padx=10, pady=5)
@@ -126,7 +135,8 @@ age_group_menu.grid(row=1, column=1, padx=10, pady=5)
 # 3. Stimmung
 ctk.CTkLabel(root, text="Stimmung:").grid(row=2, column=0, padx=10, pady=5)
 mood_var = ctk.StringVar(root)
-mood_menu = ctk.CTkOptionMenu(root, variable=mood_var, values=["Fröhlich", "Spannend", "Nachdenklich", "Inspirierend", "Keine Angabe"])
+mood_menu = ctk.CTkOptionMenu(root, variable=mood_var, values=["Fröhlich", "Spannend", "Nachdenklich", "Inspirierend", "Krieg",
+                                                               "Keine Angabe"])
 mood_menu.grid(row=2, column=1, padx=10, pady=5)
 
 # 4. Streamingdienst
@@ -174,5 +184,7 @@ top_rated_checkbox.grid(row=8, column=1, padx=10, pady=5)
 # Button zum Finden des Films
 submit_button = ctk.CTkButton(root, text="Film finden", command=on_submit)
 submit_button.grid(row=9, column=2, columnspan=2, pady=20)
+
+
 
 root.mainloop()

@@ -1,6 +1,9 @@
-main.py
 Dockerfile
 Aufgabenstellung Python Projekt.pdf
 requirements.txt
 README.md
 .venv
+__pycache__/
+API_KEY_URL
+LICENSE
+README.md
