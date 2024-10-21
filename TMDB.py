@@ -1,4 +1,6 @@
 import requests
+import random
+
 
 BEARER_TOKEN = ("eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlOWZjZGIxYTM5YTY3OWIzNzA2MTkyMTNjYTg1ODJlZSIsIm5iZiI6MTcyOTUwMTU2MC42NzYxOTMsInN1YiI6IjY3MGUyNDAyOWYzNTMxZTZiMjZjNTdlMiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.9jM6bs1v8fcVTvS8b91n0OP4lYn0yuzuWVZcdQI2x1c")
 
@@ -54,6 +56,29 @@ def get_genre_id(genre_name):
         return None  # Falls kein passendes Genre gefunden wird
 
 
+def get_company_id(company_name):
+    url = f"https://api.themoviedb.org/3/search/company"
+    headers = {
+        "Authorization": f"Bearer {BEARER_TOKEN}"
+    }
+    params = {
+        "query": "Doorsproduction"  # Hier den Firmennamen eingeben, z.B. "Doors Production"
+    }
+
+    # API-Anfrage, um die Produktionsfirma zu suchen
+    response = requests.get(url, headers=headers, params=params)
+
+    if response.status_code == 200:
+        companies = response.json().get("results", [])
+        if companies:
+            # Gibt die erste gefundene Company-ID zurück
+            return companies[0].get("id")
+        else:
+            print(f"Keine Firma mit dem Namen '{company_name}' gefunden.")
+            return None
+    else:
+        print(f"Fehler bei der API-Abfrage: {response.status_code}")
+        return None
 
 def get_genres():
     url = "https://api.themoviedb.org/3/genre/movie/list"
@@ -122,6 +147,30 @@ def get_genre_combination(genre, mood):
         # Falls keine Stimmung definiert ist, nur das Hauptgenre verwenden
         return [get_genre_id(genre)]
 
+def search_company_by_name(company_name):
+    url = "https://api.themoviedb.org/3/search/company"
+    headers = {
+        "Authorization": f"Bearer {BEARER_TOKEN}"
+    }
+    params = {
+        "query": company_name,  # Der Firmenname, den der Benutzer eingegeben hat
+        # "language": "de-DE"  # Optional: Falls du Ergebnisse in einer bestimmten Sprache möchtest
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+
+    if response.status_code == 200:
+        companies = response.json().get("results", [])
+        if companies:
+            # Rückgabe aller gefundenen Firmen
+            return companies
+        else:
+            print(f"Keine Firmen mit dem Namen '{company_name}' gefunden.")
+            return []
+    else:
+        print(f"Fehler bei der API-Abfrage: {response.status_code}")
+        return []
+
 
 # Funktion, um Popularitätsbereiche basierend auf der Slider-Position zu ermitteln
 def get_popularity_range(slider_value):
@@ -181,25 +230,25 @@ def get_streaming_provider_id(streaming_service_name):
         return None
 
 
-
-def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_provider_id=None, mood=None):
+def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_provider_id=None, mood=None, production_company_id=None):
     headers = {
         "Authorization": f"Bearer {BEARER_TOKEN}"
     }
     all_movies = []
     current_page = 1
-    total_pages = 13  # Jede Seite enthält 20 Filme, also max. 13 Seiten für 250 Filme
 
     # Verarbeite die Genre-IDs als kommaseparierte Liste
     genre_ids_str = ",".join(map(str, genre_ids))
 
-    while len(all_movies) < 250 and current_page <= total_pages:
+    # Produktionsfirma ausschließen (Beispiel: "Doors Production")
+    # Deaktiviere das, um sicherzustellen, dass dieser Filter keine Probleme verursacht
+    company_id_to_exclude = None  # Entferne diese Zeile, wenn du wieder ausschließen möchtest: get_company_id("Doors Production")
+
+    while len(all_movies) < 250:
         params = {
             "with_genres": genre_ids_str,  # Kombinierte Genre-IDs
             "language": "de-DE",  # Priorisiere deutsche Titel
-            "region": "DE",  # Region Deutschland
-            "watch_region": "DE",  # Streaming-Anbieter in Deutschland
-            "page": current_page
+            "page": current_page,
         }
 
         # Ältere oder neuere Filme filtern
@@ -208,30 +257,55 @@ def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_pro
         elif year_group == "neuer":
             params["release_date.gte"] = "2000-01-01"
 
-        # Optional: Filter nach Streamingdienst
+        # Filter nach Streamingdienst (falls angegeben)
         if streaming_provider_id:
             params["with_watch_providers"] = streaming_provider_id
-            params["watch_region"] = "DE"
+            # Testweise entfernen, wenn nötig:
+            # params["watch_region"] = "DE"
 
-        # Sortierung basierend auf Popularität (kann je nach Stimmung angepasst werden)
+        # Produktionsfirma filtern, wenn eine eingegeben wurde
+        if production_company_id:
+            params["with_companies"] = production_company_id
+            print(f"Productionsfirma ID: {production_company_id}")  # Debug-Ausgabe der Firma
+
+        # Produktionsfirma ausschließen (falls aktiviert)
+        if company_id_to_exclude:
+            params["without_companies"] = company_id_to_exclude
+
+        # Sortierung basierend auf Popularität
         params["sort_by"] = "popularity.desc" if popularity == "bekannt" else "popularity.asc"
 
         # API-Anfrage
-        url = "https://api.themoviedb.org/3/discover/movie"
+        url = "https://api.themoviedb.org/3/discover/movie/"
         response = requests.get(url, headers=headers, params=params)
 
+        # Debugging: Zeige die API-Antwort an, um zu sehen, was zurückgegeben wird
+        print("API Response:", response.json())
+
         if response.status_code == 200:
-            movies = response.json().get("results", [])
+            response_data = response.json()
+            movies = response_data.get("results", [])
+            total_pages = response_data.get("total_pages", 1)  # Gesamtanzahl der Seiten aus der API-Antwort
+
             all_movies.extend(movies)
+
+            # Abbruchbedingung, wenn wir alle Seiten durchlaufen haben
+            if current_page >= total_pages:
+                break
+
+            # Erhöhe die Seitenzahl für die nächste Anfrage
+            current_page += 1
         else:
             print(f"Fehler bei der API-Abfrage: {response.status_code}")
             break
 
-        current_page += 1
+    # Zufällige Auswahl von Filmen (max. 10 Filme auswählen)
+    if len(all_movies) > 0:
+        random_movies = random.sample(all_movies, min(len(all_movies), 10))  # Zufällig 10 Filme auswählen
+    else:
+        random_movies = []
 
-    return all_movies[:250]  # Nur die Top 250 Filme zurückgeben
-
-
+    return random_movies
 
 
 

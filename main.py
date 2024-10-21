@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from TMDB import get_genre_id, get_streaming_provider_id, get_top_250_movies_by_genre, get_popularity_range, get_genre_combination
+from TMDB import get_genre_id, get_streaming_provider_id, get_top_250_movies_by_genre, get_popularity_range, get_genre_combination, search_company_by_name
 from tkinter import messagebox
 from PIL import Image, ImageTk
 import requests
@@ -53,45 +53,54 @@ def show_movie_popup(movie):
         messagebox.showinfo("Fehler", "Kein Film gefunden.")
 
 
+def update_popularity_label(value):
+    popularity_value_label.configure(text=f"Beliebtheit: {int(value)}")
 
 # Hauptfunktion, um die Antworten zu sammeln und den Film zu finden
 def on_submit():
-    genre = genre_var.get()
-    year_group = age_group_var.get().lower()
-    mood = mood_var.get()
-    streaming_service = streaming_service_var.get()
-    production_company = production_company_entry.get()
-    keywords = keywords_entry.get()
-    runtime = runtime_var.get()
-    trending = trending_var.get()
-    top_rated = top_rated_var.get()
+    # 1. Benutzereingaben sammeln
+    genre = genre_var.get()  # Genre auslesen
+    year_group = age_group_var.get().lower()  # Älter/Neuer auslesen und in Kleinbuchstaben konvertieren
+    mood = mood_var.get()  # Stimmung auslesen
+    streaming_service = streaming_service_var.get()  # Streamingdienst auslesen
+    production_company_name = production_company_entry.get()  # Produktionsfirma auslesen
+    popularity = popularity_slider.get()  # Beliebtheit vom Slider auslesen
+    keywords = keywords_entry.get()  # Keywords auslesen (optional)
+    runtime = runtime_var.get()  # Laufzeit auslesen
+    trending = trending_var.get()  # "Aktuell angesagt" auslesen
+    top_rated = top_rated_var.get()  # "Top Rated" auslesen
 
-    # Abrufen der kombinierten Genre-IDs basierend auf der Auswahl von Genre und Stimmung
-    genre_combination = get_genre_combination(genre, mood)
+    # 2. Produktionsfirma basierend auf dem Benutzereingang suchen
+    selected_company_id = 420  # Marvel Studios ID
+    if production_company_name:
+        companies = search_company_by_name(production_company_name)  # Produktionsfirma suchen
+        if companies:
+            selected_company_id = companies[0]['id']  # Nimm die erste gefundene Firma
+            print(
+                f"Gefundene Firma: {companies[0]['name']}, ID: {selected_company_id}")  # Gib den Namen und die ID aus # Nimm die erste gefundene Firma (du kannst auch eine Auswahl anzeigen lassen)
 
-    # Abrufen der Provider-ID basierend auf der Benutzerauswahl
-    streaming_provider_id = get_streaming_provider_id(streaming_service)
+    # 3. Provider-ID für den Streamingdienst finden
+    streaming_provider_id = get_streaming_provider_id(streaming_service)  # Streaming Provider ID holen
 
     if not streaming_provider_id:
         messagebox.showinfo("Fehler", "Streamingdienst nicht gefunden.")
         return
 
-    # Beliebtheitsbereich von der Slider-Position ermitteln
-    popularity_value = popularity_slider.get()
-    popularity_range = get_popularity_range(popularity_value)
+    # 4. Popularitätsbereich basierend auf dem Slider-Wert ermitteln
+    popularity_range = get_popularity_range(popularity)
 
-    # Filme basierend auf den Kriterien suchen
-    movies = get_top_250_movies_by_genre(genre_combination, year_group, popularity_range, streaming_provider_id, mood)
+    # 5. Genre-Kombinationen basierend auf der Stimmung abrufen (falls du das nutzt)
+    genre_combination = get_genre_combination(genre, mood)
+
+    # 6. Filme basierend auf den Kriterien, Popularität und der Produktionsfirma suchen
+    movies = get_top_250_movies_by_genre(genre_combination, year_group, popularity_range, streaming_provider_id, mood, selected_company_id)
 
     if not movies:
         messagebox.showinfo("Fehler", "Keine Filme gefunden.")
         return
 
-    # Zeige den ersten Film in einem Popup-Fenster an
+    # 7. Zeige den ersten Film in einem Popup-Fenster an
     show_movie_popup(movies[0])
-
-
-
 
 # Funktion, um den Popularitätswert im Label zu aktualisieren
 def update_popularity_label(value):
