@@ -1,5 +1,6 @@
 import customtkinter as ctk
-from TMDB import get_genre_id, get_streaming_provider_id, get_top_250_movies_by_genre, get_popularity_range, get_genre_combination, search_company_by_name
+from TMDB import get_genre_id, get_streaming_provider_id, get_top_250_movies_by_genre, get_popularity_range, \
+    get_genre_combination, search_company_by_name, get_company_id
 from tkinter import messagebox
 from PIL import Image, ImageTk
 import requests
@@ -71,7 +72,7 @@ def on_submit():
     top_rated = top_rated_var.get()  # "Top Rated" auslesen
 
     # 2. Produktionsfirma basierend auf dem Benutzereingang suchen
-    selected_company_id = 420  # Marvel Studios ID
+    selected_company_id = get_company_id(production_company_name)  # Marvel Studios ID
     if production_company_name:
         companies = search_company_by_name(production_company_name)  # Produktionsfirma suchen
         if companies:
@@ -94,7 +95,6 @@ def on_submit():
 
     # 6. Filme basierend auf den Kriterien, Popularität und der Produktionsfirma suchen
     movies = get_top_250_movies_by_genre(genre_combination, year_group, popularity_range, streaming_provider_id, mood, selected_company_id)
-
     if not movies:
         messagebox.showinfo("Fehler", "Keine Filme gefunden.")
         return

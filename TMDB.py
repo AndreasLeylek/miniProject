@@ -1,8 +1,9 @@
 import requests
 import random
 
+BEARER_TOKEN = (
+    "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlOWZjZGIxYTM5YTY3OWIzNzA2MTkyMTNjYTg1ODJlZSIsIm5iZiI6MTcyOTUwMTU2MC42NzYxOTMsInN1YiI6IjY3MGUyNDAyOWYzNTMxZTZiMjZjNTdlMiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.9jM6bs1v8fcVTvS8b91n0OP4lYn0yuzuWVZcdQI2x1c")
 
-BEARER_TOKEN = ("eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlOWZjZGIxYTM5YTY3OWIzNzA2MTkyMTNjYTg1ODJlZSIsIm5iZiI6MTcyOTUwMTU2MC42NzYxOTMsInN1YiI6IjY3MGUyNDAyOWYzNTMxZTZiMjZjNTdlMiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.9jM6bs1v8fcVTvS8b91n0OP4lYn0yuzuWVZcdQI2x1c")
 
 def get_genre_id(genre_name):
     url = "https://api.themoviedb.org/3/genre/movie/list"
@@ -12,7 +13,6 @@ def get_genre_id(genre_name):
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         print(response.json())
-
 
     if genre_name.lower() == "action":
         return 28
@@ -79,6 +79,7 @@ def get_company_id(company_name):
     else:
         print(f"Fehler bei der API-Abfrage: {response.status_code}")
         return None
+
 
 def get_genres():
     url = "https://api.themoviedb.org/3/genre/movie/list"
@@ -147,6 +148,7 @@ def get_genre_combination(genre, mood):
         # Falls keine Stimmung definiert ist, nur das Hauptgenre verwenden
         return [get_genre_id(genre)]
 
+
 def search_company_by_name(company_name):
     url = "https://api.themoviedb.org/3/search/company"
     headers = {
@@ -195,6 +197,7 @@ def get_popularity_range(slider_value):
     elif slider_value == 10:
         return (500, None)  # Unbegrenzte Popularität
 
+
 def get_streaming_provider_id(streaming_service_name):
     if streaming_service_name.lower() == "netflix":
         return 8
@@ -230,14 +233,14 @@ def get_streaming_provider_id(streaming_service_name):
         return None
 
 
-def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_provider_id=None, mood=None, production_company_id=None):
+def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_provider_id=None, mood=None,
+                                production_company_id=None):
     headers = {
         "Authorization": f"Bearer {BEARER_TOKEN}"
     }
     all_movies = []
     current_page = 1
 
-    # Verarbeite die Genre-IDs als kommaseparierte Liste
     genre_ids_str = ",".join(map(str, genre_ids))
 
     # Produktionsfirma ausschließen (Beispiel: "Doors Production")
@@ -276,7 +279,7 @@ def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_pro
         params["sort_by"] = "popularity.desc" if popularity == "bekannt" else "popularity.asc"
 
         # API-Anfrage
-        url = "https://api.themoviedb.org/3/discover/movie/"
+        url = "https://api.themoviedb.org/3/discover/movie"
         response = requests.get(url, headers=headers, params=params)
 
         # Debugging: Zeige die API-Antwort an, um zu sehen, was zurückgegeben wird
@@ -306,6 +309,3 @@ def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_pro
         random_movies = []
 
     return random_movies
-
-
-
