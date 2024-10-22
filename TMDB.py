@@ -150,13 +150,15 @@ def get_genre_combination(genre, mood):
 
 
 def search_company_by_name(company_name):
+    if not company_name or not company_name.strip():
+        print("Kein Firmenname angegeben.")
+        return []
     url = "https://api.themoviedb.org/3/search/company"
     headers = {
         "Authorization": f"Bearer {BEARER_TOKEN}"
     }
     params = {
-        "query": company_name,  # Der Firmenname, den der Benutzer eingegeben hat
-        # "language": "de-DE"  # Optional: Falls du Ergebnisse in einer bestimmten Sprache möchtest
+        "query": company_name
     }
 
     response = requests.get(url, headers=headers, params=params)
@@ -164,7 +166,6 @@ def search_company_by_name(company_name):
     if response.status_code == 200:
         companies = response.json().get("results", [])
         if companies:
-            # Rückgabe aller gefundenen Firmen
             return companies
         else:
             print(f"Keine Firmen mit dem Namen '{company_name}' gefunden.")
@@ -196,6 +197,29 @@ def get_popularity_range(slider_value):
         return (300, 500)
     elif slider_value == 10:
         return (500, None)  # Unbegrenzte Popularität
+
+
+import requests
+
+
+def get_imdb_id_from_tmdb(tmdb_movie_id):
+    url = f"https://api.themoviedb.org/3/movie/{tmdb_movie_id}"
+    headers = {
+        "Authorization": f"Bearer {BEARER_TOKEN}"
+    }
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        movie_data = response.json()
+        imdb_id = movie_data.get("imdb_id")
+        if imdb_id:
+            return imdb_id
+        else:
+            print("Keine IMDb-ID gefunden.")
+            return None
+    else:
+        print(f"Fehler bei der API-Anfrage: {response.status_code}")
+        return None
 
 
 def get_streaming_provider_id(streaming_service_name):
@@ -240,18 +264,14 @@ def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_pro
     }
     all_movies = []
     current_page = 1
-
+    max_returned_movies = 10
     genre_ids_str = ",".join(map(str, genre_ids))
 
-    # Produktionsfirma ausschließen (Beispiel: "Doors Production")
-    # Deaktiviere das, um sicherzustellen, dass dieser Filter keine Probleme verursacht
-    company_id_to_exclude = None  # Entferne diese Zeile, wenn du wieder ausschließen möchtest: get_company_id("Doors Production")
-
-    while len(all_movies) < 250:
+    while len(all_movies) < max_returned_movies:
         params = {
-            "with_genres": genre_ids_str,  # Kombinierte Genre-IDs
-            "language": "de-DE",  # Priorisiere deutsche Titel
-            "page": current_page,
+            "with_genres": genre_ids_str,
+            "language": "de-DE",
+            "page": current_page
         }
 
         # Ältere oder neuere Filme filtern
@@ -260,20 +280,14 @@ def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_pro
         elif year_group == "neuer":
             params["release_date.gte"] = "2000-01-01"
 
+        # Produktionsfirma ID hinzufügen, falls vorhanden
+        if production_company_id:
+            params["with_companies"] = production_company_id
+
         # Filter nach Streamingdienst (falls angegeben)
         if streaming_provider_id:
             params["with_watch_providers"] = streaming_provider_id
-            # Testweise entfernen, wenn nötig:
-            # params["watch_region"] = "DE"
-
-        # Produktionsfirma filtern, wenn eine eingegeben wurde
-        if production_company_id:
-            params["with_companies"] = production_company_id
-            print(f"Productionsfirma ID: {production_company_id}")  # Debug-Ausgabe der Firma
-
-        # Produktionsfirma ausschließen (falls aktiviert)
-        if company_id_to_exclude:
-            params["without_companies"] = company_id_to_exclude
+            params["watch_region"] = "DE"
 
         # Sortierung basierend auf Popularität
         params["sort_by"] = "popularity.desc" if popularity == "bekannt" else "popularity.asc"
@@ -282,30 +296,30 @@ def get_top_250_movies_by_genre(genre_ids, year_group, popularity, streaming_pro
         url = "https://api.themoviedb.org/3/discover/movie"
         response = requests.get(url, headers=headers, params=params)
 
-        # Debugging: Zeige die API-Antwort an, um zu sehen, was zurückgegeben wird
-        print("API Response:", response.json())
-
         if response.status_code == 200:
             response_data = response.json()
             movies = response_data.get("results", [])
-            total_pages = response_data.get("total_pages", 1)  # Gesamtanzahl der Seiten aus der API-Antwort
+            total_pages = response_data.get("total_pages", 1)
 
-            all_movies.extend(movies)
+            for movie in movies:
+                imdb_id = get_imdb_id_from_tmdb(movie.get('id'))
+                if imdb_id:
+                    title = movie.get('title') or movie.get('original_title')
+                    print(f"Film: {title}, IMDb-ID: {imdb_id}")
+                    all_movies.append(movie)
 
-            # Abbruchbedingung, wenn wir alle Seiten durchlaufen haben
             if current_page >= total_pages:
                 break
 
-            # Erhöhe die Seitenzahl für die nächste Anfrage
             current_page += 1
         else:
             print(f"Fehler bei der API-Abfrage: {response.status_code}")
             break
 
-    # Zufällige Auswahl von Filmen (max. 10 Filme auswählen)
     if len(all_movies) > 0:
-        random_movies = random.sample(all_movies, min(len(all_movies), 10))  # Zufällig 10 Filme auswählen
+        random_movies = random.sample(all_movies, min(len(all_movies), max_returned_movies))
     else:
         random_movies = []
 
     return random_movies
+
