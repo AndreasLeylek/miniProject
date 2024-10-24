@@ -17,10 +17,6 @@ def connect_to_db():
         return None
 
 
-import requests
-import psycopg2
-
-
 # Abrufen der Filmdaten von TMDB
 def get_movie_data_from_tmdb(movie_id):
     BEARER_TOKEN = "your_tmdb_bearer_token"
